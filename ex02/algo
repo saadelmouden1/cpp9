@@ -1,0 +1,86 @@
+FUNCTION merge_insertion_sort(container, pair_level):
+
+    element_nbr = container.size() / pair_level
+    IF element_nbr < 2:
+        RETURN
+
+    is_odd = element_nbr % 2 == 1
+    end_index = element_nbr
+    IF is_odd:
+        end_index -= 1
+
+    # 1) Swap adjacent pairs recursively
+    FOR i = 0 TO end_index STEP 2:
+        first_elem_start  = container.begin() + i * pair_level
+        first_elem_end    = first_elem_start + (pair_level - 1)
+        second_elem_start = container.begin() + (i+1) * pair_level
+        second_elem_end   = second_elem_start + (pair_level - 1)
+
+        IF *second_elem_end < *first_elem_end:
+            _swap_pair(first_elem_end, pair_level)
+
+    # 2) Recurse with doubled block size
+    merge_insertion_sort(container, pair_level * 2)
+
+    # 3) Build main and pend chains (iterators to block ends)
+    main = []
+    pend = []
+
+    main.push_back(container.begin() + (pair_level - 1))       # b1
+    main.push_back(container.begin() + (pair_level * 2 - 1))   # a1
+
+    FOR i = 4 TO element_nbr STEP 2:
+        pend.push_back(container.begin() + (pair_level * (i-1) - 1))  # bi
+        main.push_back(container.begin() + (pair_level * i - 1))      # ai
+
+    IF is_odd:
+        pend.push_back(container.end() - 1)  # leftover block
+
+    # 4) Insert pend elements into main in Jacobsthal order
+    prev_jacobsthal = jacobsthal_number(1)
+    inserted_numbers = 0
+
+    FOR k = 2 TO infinity:
+        curr_jacobsthal = jacobsthal_number(k)
+        jacobsthal_diff = curr_jacobsthal - prev_jacobsthal
+        offset = 0
+
+        IF jacobsthal_diff > size(pend):
+            BREAK
+
+        pend_it  = pend.begin() + (jacobsthal_diff - 1)
+        bound_it = main.begin() + (curr_jacobsthal + inserted_numbers)
+
+        WHILE jacobsthal_diff > 0:
+            idx = upper_bound(main.begin(), bound_it, *pend_it)
+            inserted = main.insert(idx, *pend_it)
+            pend_it = pend.erase(pend_it)
+            pend_it = pend_it - 1
+            offset += (position_of(inserted) == curr_jacobsthal + inserted_numbers)
+            bound_it = main.begin() + (curr_jacobsthal + inserted_numbers - offset)
+            jacobsthal_diff -= 1
+
+        prev_jacobsthal = curr_jacobsthal
+        inserted_numbers += curr_jacobsthal - prev_jacobsthal
+        offset = 0
+
+    # 5) Insert remaining pend elements in reverse order
+    FOR i = size(pend) - 1 DOWNTO 0:
+        curr_pend  = pend[i]
+        bound_index = size(main) - size(pend) + i + is_odd
+        bound_it = main.begin() + bound_index
+        idx = upper_bound(main.begin(), bound_it, curr_pend)
+        main.insert(idx, curr_pend)
+
+    # 6) Flatten main into a copy vector to preserve order
+    copy = []
+    FOR it IN main:
+        FOR j = 0 TO pair_level - 1:
+            pair_start = it - pair_level + 1
+            copy.push_back(*(pair_start + j))
+
+    # 7) Copy back to original container
+    FOR i = 0 TO size(container) - 1:
+        container[i] = copy[i]
+
+END FUNCTION
